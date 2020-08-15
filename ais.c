@@ -12,6 +12,7 @@
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <pthread.h>
 #include "ais.h"
 #include "conf.h"
 
@@ -170,7 +171,6 @@ void extract_server_path(const char *header, char *output)
 
 int extract_host(const char *header)
 {
-
     char *_p = strstr(header, "CONNECT"); /* 在 CONNECT 方法中解析 隧道主机名称及端口号 */
     if (_p) {
         char *_p1 = strchr(_p, ' ');
@@ -258,7 +258,6 @@ void hand_mproxy_info_req(int sock, char *header)
                      </body></html>\n", info_buf);
 
     write(sock, response, strlen(response));
-
 }
 
 /* 获取运行的基本信息输出到指定的缓冲区 */
@@ -531,7 +530,8 @@ void sigchld_handler(int signal)
 // IP段白名单
 int whitelist(char *client_ip, char (*whitelist_ip)[32])
 {
-    for (int i = 1; i < WHITELIST_IP_NUM - 1; i++) {
+    int i;
+    for (i = 1; i < WHITELIST_IP_NUM - 1; i++) {
         if (strcmp(whitelist_ip[i], "\0") == 0) { //  如果字符串为空就跳出循环
             break;
         }
@@ -545,6 +545,7 @@ int whitelist(char *client_ip, char (*whitelist_ip)[32])
 
 void server_loop()
 {
+    int i;
     char ipstr[128];
     char client_ip[32];         // 客户端IP
     struct sockaddr_in client_addr;
@@ -554,24 +555,27 @@ void server_loop()
     read_conf("ais.conf", configure);
     printf("%s\n", configure->IP_SEGMENT);
 
-    char whitelist_ip[WHITELIST_IP_NUM][32] = { 0 };
+    char whitelist_ip[WHITELIST_IP_NUM][32] = {{ 0 }, { 0 }};
     split_string(configure->IP_SEGMENT, " ", whitelist_ip);
 
-    for (int i = 1; i <= WHITELIST_IP_NUM - 1; i++) {
+    for (i = 1; i <= WHITELIST_IP_NUM - 1; i++) {
         if (*whitelist_ip[i] != '\0')
             printf("%s\n", whitelist_ip[i]);
     }
-    //exit(0);
 
     while (1) {
         client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addrlen);
         if (client_sock > 0) {
             LOG("Client Ip %s Client Port %d\n", inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, ipstr, sizeof(ipstr)), ntohs(client_addr.sin_port));
             strcpy(client_ip, inet_ntop(AF_INET, &client_addr.sin_addr.s_addr, ipstr, sizeof(ipstr))); // 复制客户端IP到client_ip
-            if (whitelist(client_ip, whitelist_ip) == 0) {
-                LOG("非法客户端, 拒绝连接\n");
-                continue;
+            
+            if (configure->IP_RESTRICTION == 1) {
+                if (whitelist(client_ip, whitelist_ip) == 0) {
+                    LOG("非法客户端, 拒绝连接\n");
+                    continue;
+                }
             }
+            
         }
 
         if (fork() == 0) {      // 创建子进程处理客户端连接请求
@@ -689,5 +693,6 @@ int _main(int argc, char *argv[])
     get_info(info_buf);
     LOG("%s\n", info_buf);
     start_server(daemon);
+
     return 0;
 }

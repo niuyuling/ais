@@ -74,6 +74,9 @@ static void parse_global_module(char *content, conf * p)
             memset(p->IP_SEGMENT, 0, val_begin_len);
             memcpy(p->IP_SEGMENT, val_begin, val_begin_len);
         }
+        if (strcasecmp(var, "IP_RESTRICTION") == 0) {
+            p->IP_RESTRICTION = atoi(val_begin);
+        }
         content = strchr(lineEnd + 1, '\n');
     }
 }

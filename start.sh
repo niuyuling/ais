@@ -1,8 +1,4 @@
 #!/bin/bash
-#
-# Start AIS
-# date: 20200526
-#
 
 SHELL_FOLDER=$(cd "$(dirname "$0")"; pwd)       #脚本所在目录
 SHELL_FOLDER=$(dirname $(readlink -f "$0"))

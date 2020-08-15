@@ -9,6 +9,7 @@
 
 // 配置文件结构
 typedef struct CONF {
+    int IP_RESTRICTION;
     char *IP_SEGMENT;
 } conf;
 

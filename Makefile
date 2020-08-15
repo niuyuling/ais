@@ -2,7 +2,7 @@ CROSS_COMPILE ?=
 CC := $(CROSS_COMPILE)gcc
 STRIP := $(CROSS_COMPILE)strip
 CFLAGS += -g -O2 -Wall
-LIBS = -static
+LIBS = 
 OBJ := ais
 
 all: conf.o ais.o
