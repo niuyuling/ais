@@ -5,7 +5,7 @@ CFLAGS += -g -O2 -Wall
 LIBS = 
 OBJ := ais
 
-all: conf.o ais.o
+all: ais.o conf.o
 	$(CC) $(CFLAGS) -o $(OBJ) $^ $(LIBS)
 .c.o:
 	$(CC) $(CFLAGS) -c $< $(LIBS)

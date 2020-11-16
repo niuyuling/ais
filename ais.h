@@ -1,6 +1,6 @@
-#ifndef _AIS_
-#define _AIS_
+#ifndef AIS_H
+#define AIS_H
 
-#define WHITELIST_IP_NUM 200
+#define WHITELIST_IP_NUM 2700
 
 #endif

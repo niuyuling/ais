@@ -140,7 +140,7 @@ void free_conf(conf * p)
     return;
 }
 
-void split_string(char string[], char delims[], char (*whitelist_ip)[32])
+void split_string(char string[], char delims[], char (*whitelist_ip)[WHITELIST_IP_NUM])
 {
     int i = 0;
     char *result = NULL;
