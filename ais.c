@@ -173,16 +173,31 @@ int extract_host(const char *header)
 {
     char *_p = strstr(header, "CONNECT"); /* 在 CONNECT 方法中解析 隧道主机名称及端口号 */
     if (_p) {
+
+        if (strchr(header, '[') || strchr(header, ']')) {       // ipv6
+            char *_p1 = strchr(header, '[');
+            //printf("%s\n", _p1+1);
+
+            char *_p2 = strchr(_p1 + 1, ']');
+            //printf("%s\n", _p2);
+
+            strncpy(remote_host, _p1 + 1, (int)(_p2 - _p1) - 1);
+            remote_port = 443;
+
+            return 0;
+        }
+
         char *_p1 = strchr(_p, ' ');
         char *_p2 = strchr(_p1 + 1, ':');
         char *_p3 = strchr(_p1 + 1, ' ');
-
         if (_p2) {
             char s_port[10];
             bzero(s_port, 10);
+
             strncpy(remote_host, _p1 + 1, (int)(_p2 - _p1) - 1);
             strncpy(s_port, _p2 + 1, (int)(_p3 - _p2) - 1);
             remote_port = atoi(s_port);
+
         } else {
             strncpy(remote_host, _p1 + 1, (int)(_p3 - _p1) - 1);
             remote_port = 80;
@@ -193,17 +208,16 @@ int extract_host(const char *header)
 
     char *p = strstr(header, "Host:");
     if (!p) {
-        return BAD_HTTP_PROTOCOL;
+        return -1;
     }
     char *p1 = strchr(p, '\n');
     if (!p1) {
-        return BAD_HTTP_PROTOCOL;
+        return -1;
     }
 
     char *p2 = strchr(p + 5, ':'); /* 5是指'Host:'的长度 */
 
     if (p2 && p2 < p1) {
-
         int p_len = (int)(p1 - p2 - 1);
         char s_port[p_len];
         strncpy(s_port, p2 + 1, p_len);
@@ -739,6 +753,8 @@ int _main(int argc, char *argv[])
             } else {
                 strncpy(remote_host, optarg, strlen(remote_host));
             }
+            strcpy(remote_host, "2001:19f0:7001:3bcb:5400:3ff:fe03:860e");
+            remote_port = 127;
             break;
         case 'd':
             DAEMON = 1;
