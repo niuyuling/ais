@@ -10,6 +10,9 @@
 
 // 配置文件结构
 typedef struct CONF {
+    int local_port;
+    char *io_flag;
+    int encode;
     int IP_RESTRICTION;
     char *IP_SEGMENT;
 } conf;

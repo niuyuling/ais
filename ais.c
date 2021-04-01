@@ -169,20 +169,36 @@ void extract_server_path(const char *header, char *output)
 
 }
 
+int isLetter(char c)            // a-z A-Z 返回1, 0-9 返回0
+{
+    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+}
+
+int isChar(char *string)        // string字符串里有字符时返回1
+{
+    int i;
+
+    for (i = 0; i < strlen(string); i++) {
+        if (isLetter(string[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int extract_host(const char *header)
 {
-    char *_p = strstr(header, "CONNECT"); /* 在 CONNECT 方法中解析 隧道主机名称及端口号 */
+    char *_p = strstr(header, "CONNECT"); // 在 CONNECT 方法中解析 隧道主机名称及端口号
     if (_p) {
-
-        if (strchr(header, '[') || strchr(header, ']')) {       // ipv6
+        if (strchr(header, '[') || strchr(header, ']')) {
             char *_p1 = strchr(header, '[');
-            //printf("%s\n", _p1+1);
-
             char *_p2 = strchr(_p1 + 1, ']');
-            //printf("%s\n", _p2);
-
             strncpy(remote_host, _p1 + 1, (int)(_p2 - _p1) - 1);
-            remote_port = 443;
+
+            char *_p3 = strchr(_p2 + 1, ' ');
+            char s_port[270];
+            strncpy(s_port, _p2 + 2, (int)(_p3 - _p2) - 1);
+            remote_port = atoi(s_port);
 
             return 0;
         }
@@ -204,36 +220,95 @@ int extract_host(const char *header)
         }
 
         return 0;
-    }
+    } else {                    // 在非 CONNECT 方法中解析主机名称及端口号
+        char *p = strstr(header, "Host:");
+        if (!p) {
+            return -1;
+        }
+        char *p1 = strchr(p, '\n');
+        if (!p1) {
+            return -1;
+        }
+        char *p2 = strchr(p + 5, ':'); // 5是指'Host:'的长度
 
-    char *p = strstr(header, "Host:");
-    if (!p) {
-        return -1;
-    }
-    char *p1 = strchr(p, '\n');
-    if (!p1) {
-        return -1;
-    }
+        int h_len = (int)(p1 - p - 6);
+        char s_host[h_len];
+        strncpy(s_host, p + 6, p1 - p - 6);
+        s_host[h_len] = '\0';
 
-    char *p2 = strchr(p + 5, ':'); /* 5是指'Host:'的长度 */
+        char *p3 = strchr(s_host, ':');
+        char *p4 = NULL;
+        if (p3)
+            p4 = strchr(p3 + 1, ':');
 
-    if (p2 && p2 < p1) {
-        int p_len = (int)(p1 - p2 - 1);
-        char s_port[p_len];
-        strncpy(s_port, p2 + 1, p_len);
-        s_port[p_len] = '\0';
-        remote_port = atoi(s_port);
+        if (p4 != NULL) {       // IPV6
+            char *p5 = NULL;
+            char *p6 = NULL;
+            p5 = strchr(header, ' ');
+            if (p5)
+                p6 = strchr(p5 + 1, ' ');
 
-        int h_len = (int)(p2 - p - 5 - 1);
-        strncpy(remote_host, p + 5 + 1, h_len); //Host:
-        //assert h_len < 128;
-        remote_host[h_len] = '\0';
-    } else {
-        int h_len = (int)(p1 - p - 5 - 1 - 1);
-        strncpy(remote_host, p + 5 + 1, h_len);
-        //assert h_len < 128;
-        remote_host[h_len] = '\0';
-        remote_port = 80;
+            char url[p6 - p5 - 1];
+            memset(url, 0, p6 - p5 - 1);
+            strncpy(url, p5 + 1, p6 - p5 - 1);
+            url[p6 - p5 - 1] = '\0';
+            if (strstr(url, "http") != NULL) {
+                memcpy(url, url + 7, strlen(url) - 7); // 去除 'http://'
+                url[strlen(url) - 7] = '\0';
+                char *p7 = strchr(url, '/');
+                if (p7) {           // 去除 uri
+                    url[p7 - url] = '\0';
+                }
+                printf("url: %s\n", url);
+                char *p8 = strchr(url, ']');
+                if (p8) {
+                    remote_port = atoi(p8 + 2);
+                    strncpy(remote_host, url + 1, strlen(url) - strlen(p8) - 1);
+
+                    if (strlen(p8) < 3) {           // 如果p8为 ']' 时, 长度为1
+                        remote_port = 80;
+                        strncpy(remote_host, url + 1, strlen(url) - strlen(p8) - 1);
+                    }
+                } else {                    // 不包含'['、']'时
+                    remote_port = 80;
+                    strcpy(remote_host, url);
+                }
+
+                return 0;
+            } else {                                   // 头为不规范的url时处理Host
+                char *_p1 = strchr(s_host, '[');
+                char *_p2 = strchr(_p1+1, ']');
+                if (_p1 && _p2) {
+                    strncpy(remote_host, _p1+1, _p2 - _p1 -1);
+                    remote_port = atoi(_p2+2);
+                    if (strlen(_p2) < 3) {
+                        remote_port = 80;
+                        strncpy(remote_host, s_host+1, strlen(s_host)-strlen(_p2)-1);
+                    }
+                }
+                
+                return 0;
+            }
+
+            return -1;
+        }
+
+        if (p2 && p2 < p1) {
+            int p_len = (int)(p1 - p2 - 1);
+            char s_port[p_len];
+            strncpy(s_port, p2 + 1, p_len);
+            s_port[p_len] = '\0';
+            remote_port = atoi(s_port);
+
+            int h_len = (int)(p2 - p - 5 - 1);
+            strncpy(remote_host, p + 5 + 1, h_len);
+            remote_host[h_len] = '\0';
+        } else {
+            int h_len = (int)(p1 - p - 5 - 1 - 1);
+            strncpy(remote_host, p + 5 + 1, h_len);
+            remote_host[h_len] = '\0';
+            remote_port = 80;
+        }
     }
     return 0;
 }
@@ -257,6 +332,7 @@ void hand_mproxy_info_req(int sock, char *header)
 {
     char server_path[255];
     char response[8192];
+    int w;
     extract_server_path(header, server_path);
 
     LOG("server path:%s\n", server_path);
@@ -268,7 +344,9 @@ void hand_mproxy_info_req(int sock, char *header)
                      <pre>%s</pre>\
                      </body></html>\n", info_buf);
 
-    write(sock, response, strlen(response));
+    if (-1 == (w = write(sock, response, strlen(response)))) {
+        perror("write");
+    }
 }
 
 /* 获取运行的基本信息输出到指定的缓冲区 */
@@ -358,9 +436,12 @@ void handle_client(int client_sock, struct sockaddr_in client_addr)
     }
     // 打印HTTP header
     printf("%s", header_buffer);
+    //printf("%s\n", remote_host);
+    //printf("%d\n", remote_port);
 
     if ((remote_sock = create_connection6(remote_host, remote_port)) < 0) {
         LOG("Cannot connect to host [%s:%d]\n", remote_host, remote_port);
+
         return;
     }
 
@@ -535,7 +616,7 @@ void sigchld_handler(int signal)
 int whitelist(char *client_ip, char (*whitelist_ip)[WHITELIST_IP_NUM])
 {
     int i;
-    
+
     for (i = 1; i < WHITELIST_IP_NUM - 1; i++) {
         if (strcmp(whitelist_ip[i], "\0") == 0) { //  如果字符串为空就跳出循环
             break;
@@ -562,7 +643,7 @@ void server_loop(int signal, char *conffile)
     conf *configure = (struct CONF *)malloc(sizeof(struct CONF));
     read_conf(conffile, configure);
     printf("%s\n", configure->IP_SEGMENT);
-    
+
     split_string(configure->IP_SEGMENT, " ", whitelist_ip);
 
     for (i = 1; i <= WHITELIST_IP_NUM - 1; i++) {
@@ -590,7 +671,7 @@ void server_loop(int signal, char *conffile)
                     exit(0);
                 }
             }
-            //close(client_sock);
+            close(client_sock); // 关闭父进程 client_sock
         }
 
         if (signal == 6) {
@@ -612,7 +693,7 @@ void server_loop(int signal, char *conffile)
                     exit(0);
                 }
             }
-            //close(client_sock6);
+            close(client_sock6); // 关闭父进程 client_sock6
         }
     }
 
@@ -708,8 +789,6 @@ void start_server(int SIGNAL, char *conffile)
     //初始化全局变量
     header_buffer = (char *)malloc(MAX_HEADER_SIZE);
 
-    signal(SIGCHLD, sigchld_handler); // 防止子进程变成僵尸进程
-
     if (SIGNAL == 4) {
         if ((server_sock = create_server_socket(local_port)) < 0) { // start server
             LOG("Cannot run server on %d\n", local_port);
@@ -729,6 +808,8 @@ void start_server(int SIGNAL, char *conffile)
 
 int _main(int argc, char *argv[])
 {
+    signal(SIGCHLD, sigchld_handler); // 防止子进程变成僵尸进程
+
     local_port = DEFAULT_LOCAL_PORT;
     io_flag = FLG_NONE;
     sslEncodeCode = 1;
@@ -739,6 +820,14 @@ int _main(int argc, char *argv[])
     char *p = NULL;
 
     char *conffile = "./ais.conf";
+    conf *configure = (struct CONF *)malloc(sizeof(struct CONF));
+    read_conf(conffile, configure);
+    printf("%d\n", configure->local_port);
+    printf("%s\n", configure->io_flag);
+    printf("%d\n", configure->encode);
+    printf("%d\n", configure->IP_RESTRICTION);
+    printf("%s\n", configure->IP_SEGMENT);
+    //exit(0);
 
     while (-1 != (opt = getopt(argc, argv, optstrs))) {
         switch (opt) {
@@ -747,14 +836,19 @@ int _main(int argc, char *argv[])
             break;
         case 'f':
             p = strchr(optarg, ':');
-            if (p) {
+            if (p) {            // IPV4
                 strncpy(remote_host, optarg, p - optarg);
                 remote_port = atoi(p + 1);
             } else {
                 strncpy(remote_host, optarg, strlen(remote_host));
             }
-            strcpy(remote_host, "2001:19f0:7001:3bcb:5400:3ff:fe03:860e");
-            remote_port = 127;
+
+            p = strchr(p + 1, ':');
+            if (p) {            // IPV6
+                p = strrchr(optarg, ':');
+                strncpy(remote_host, optarg, p - optarg);
+                remote_port = atoi(p + 1);
+            }
             break;
         case 'd':
             DAEMON = 1;
@@ -782,8 +876,17 @@ int _main(int argc, char *argv[])
         }
     }
 
+    local_port = configure->local_port;
+    if (strcasecmp(configure->io_flag, "W_S_ENC") == 0) {
+        io_flag = W_S_ENC;
+    }
+    if (strcasecmp(configure->io_flag, "R_C_DEC") == 0) {
+        io_flag = R_C_DEC;
+    }
+    sslEncodeCode = configure->encode;
+
     if (DAEMON == 1) {          // 守护进程
-        if(daemon(1, 1)) {
+        if (daemon(1, 1)) {
             perror("daemon");
             return -1;
         }
@@ -793,14 +896,15 @@ int _main(int argc, char *argv[])
     get_info(info_buf);
     LOG("%s\n", info_buf);
 
-    if (fork() == 0) {      // IPV4 进程
+    if (fork() == 0) {          // IPV4 进程
         start_server(4, conffile);
     }
 
-    if(fork() == 0) {       // IPV6 进程
+    if (fork() == 0) {          // IPV6 进程
         start_server(6, conffile);
     }
 
+    free_conf(configure);
     return 0;
 }
 
@@ -808,5 +912,3 @@ int main(int argc, char *argv[])
 {
     return _main(argc, argv);
 }
-
-

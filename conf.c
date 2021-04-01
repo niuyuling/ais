@@ -68,15 +68,32 @@ static void parse_global_module(char *content, conf * p)
     int val_begin_len;
 
     while ((lineEnd = set_var_val_lineEnd(content, &var, &val_begin, &val_end)) != NULL) {
+        if (strcasecmp(var, "local_port") == 0) {
+            p->local_port = atoi(val_begin);
+        }
+
+        if (strcasecmp(var, "io_flag") == 0) {
+            val_begin_len = strlen(val_begin) + 1;
+            p->io_flag = (char *)malloc(val_begin_len);
+            memset(p->io_flag, 0, val_begin_len);
+            memcpy(p->io_flag, val_begin, val_begin_len);
+        }
+
+        if (strcasecmp(var, "encode") == 0) {
+            p->encode = atoi(val_begin);
+        }
+
         if (strcasecmp(var, "IP_SEGMENT") == 0) {
             val_begin_len = strlen(val_begin) + 1;
             p->IP_SEGMENT = (char *)malloc(val_begin_len);
             memset(p->IP_SEGMENT, 0, val_begin_len);
             memcpy(p->IP_SEGMENT, val_begin, val_begin_len);
         }
+
         if (strcasecmp(var, "IP_RESTRICTION") == 0) {
             p->IP_RESTRICTION = atoi(val_begin);
         }
+
         content = strchr(lineEnd + 1, '\n');
     }
 }
@@ -113,6 +130,7 @@ void read_conf(char *filename, conf * configure)
     char *buff, *global_content;
     FILE *file;
     long file_size;
+    int return_val;
 
     file = fopen(filename, "r");
     if (file == NULL)
@@ -123,7 +141,8 @@ void read_conf(char *filename, conf * configure)
     if (buff == NULL)
         perror("out of memory.");
     rewind(file);
-    fread(buff, file_size, 1, file);
+    if (1 > (return_val = fread(buff, file_size, 1, file)))
+        perror("fread");
     fclose(file);
     buff[file_size] = '\0';
 
@@ -137,6 +156,7 @@ void read_conf(char *filename, conf * configure)
 void free_conf(conf * p)
 {
     free(p->IP_SEGMENT);
+    free(p->io_flag);
     return;
 }
 
